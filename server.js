@@ -72,6 +72,20 @@ app.post('/send', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+/* Root status page */
+app.get('/', (req, res) => {
+    res.send(`
+        <div style="font-family:Arial;padding:40px">
+            <h2>WhatsApp API is running ✅</h2>
+            <p>Status: ${isConnected ? '🟢 Connected' : '🔴 Not connected — scan QR'}</p>
+            <p><a href="/qr">Open QR login page</a></p>
+        </div>
+    `);
+});
+
+app.get('/status', (req, res) => {
+    res.json({ connected: isConnected });
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
