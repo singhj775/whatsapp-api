@@ -51,8 +51,13 @@ async function connectToWhatsApp() {
                 isConnected = false;
                 const reason = lastDisconnect && lastDisconnect.error ? lastDisconnect.error.output.statusCode : 'unknown';
                 log('closed reason=' + reason);
+                if (reason === DisconnectReason.badSession || reason === 405) {
+                    log('bad session detected — wiping auth folder for a fresh QR');
+                    try { fs.rmSync('./auth_info_baileys', { recursive: true, force: true }); } catch (e) {}
+                    try { fs.mkdirSync('./auth_info_baileys'); } catch (e) {}
+                }
                 if (reason !== DisconnectReason.loggedOut) setTimeout(connectToWhatsApp, 4000);
-                else log('LOGGED OUT — auth wiped, rescan needed');
+                else log('LOGGED OUT — rescan needed');
             } else if (connection === 'open') {
                 isConnected = true; qrCodeData = null;
                 log('WhatsApp Connected!');
