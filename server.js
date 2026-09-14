@@ -133,7 +133,12 @@ app.post('/send', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    try { log('baileys version: ' + require('@whiskeysockets/baileys/package.json').version); } catch (e) {}
+    try { 
+        log('baileys version: ' + require('@whiskeysockets/baileys/package.json').version); 
+    } catch (e) {
+        log('could not read baileys version: ' + e.message);
+    }
+
     log('API running on port ' + PORT);
     connectToWhatsApp();
 });
