@@ -17,27 +17,31 @@ if (!fs.existsSync('./auth_info_baileys')) fs.mkdirSync('./auth_info_baileys');
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('./auth_info_baileys');
-    
+
     sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
-        logger: require('pino')({ level: 'silent' })
+        logger: require('pino')({ level: 'error' })
     });
 
-    sock.ev.on('connection.update', async (update) => {
+    sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) {
             qrCodeData = qr;
             isConnected = false;
+            console.log('QR generated — waiting for scan');
         }
         if (connection === 'close') {
             isConnected = false;
             const reason = lastDisconnect?.error?.output?.statusCode;
-            if (reason !== DisconnectReason.loggedOut) connectToWhatsApp();
+            console.log('Connection closed (reason ' + reason + ') — reconnecting in 3s');
+            if (reason !== DisconnectReason.loggedOut) setTimeout(connectToWhatsApp, 3000);
         } else if (connection === 'open') {
             isConnected = true;
             qrCodeData = null;
             console.log('WhatsApp Connected!');
+        } else if (connection) {
+            console.log('State: ' + connection);
         }
     });
 
