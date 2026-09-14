@@ -44,7 +44,7 @@ async function connectToWhatsApp() {
         sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
-            browser: ['WhatsApp API', 'Chrome', '120.0.0.0'],
+            browser: (Browsers && Browsers.macOS) ? Browsers.macOS('Chrome') : ['Chrome', '127.0.0.0'],
             syncFullHistory: false,
             getMessage: async () => ({}),
             logger: require('pino')({ level: 'error' })
