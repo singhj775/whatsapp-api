@@ -13,8 +13,12 @@ const SECRET = process.env.SECRET || 'MY_SECRET_PASSWORD_123';
 let sock = null;
 let qrCodeData = null;
 let isConnected = false;
+let connecting = false;
 
-/* ---------- in-memory debug log (open /debug?token=...) ---------- */
+const AUTH_DIR = './auth_info_baileys';
+if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR);
+
+/* ---------- debug log ring ---------- */
 const LOGS = [];
 function log(msg) {
     const line = new Date().toISOString() + ' | ' + msg;
@@ -25,13 +29,18 @@ function log(msg) {
 process.on('unhandledRejection', (e) => log('UNHANDLED REJECTION: ' + (e && e.stack ? e.stack : e)));
 process.on('uncaughtException',  (e) => log('UNCAUGHT EXCEPTION: '  + (e && e.stack ? e.stack : e)));
 
-if (!fs.existsSync('./auth_info_baileys')) fs.mkdirSync('./auth_info_baileys');
+function wipeAuth() {
+    try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (e) {}
+    try { fs.mkdirSync(AUTH_DIR); } catch (e) {}
+}
 
 /* ---------- WhatsApp connection ---------- */
 async function connectToWhatsApp() {
+    if (connecting || isConnected) return;
+    connecting = true;
     try {
         log('connectToWhatsApp() start');
-        const { state, saveCreds } = await useMultiFileAuthState('./auth_info_baileys');
+        const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
         sock = makeWASocket({
             auth: state,
@@ -53,13 +62,13 @@ async function connectToWhatsApp() {
                 log('closed reason=' + reason);
                 if (reason === DisconnectReason.badSession || reason === 405) {
                     log('bad session detected — wiping auth folder for a fresh QR');
-                    try { fs.rmSync('./auth_info_baileys', { recursive: true, force: true }); } catch (e) {}
-                    try { fs.mkdirSync('./auth_info_baileys'); } catch (e) {}
+                    wipeAuth();
                 }
                 if (reason !== DisconnectReason.loggedOut) setTimeout(connectToWhatsApp, 4000);
                 else log('LOGGED OUT — rescan needed');
             } else if (connection === 'open') {
-                isConnected = true; qrCodeData = null;
+                isConnected = true;
+                qrCodeData = null;
                 log('WhatsApp Connected!');
             }
         });
@@ -68,6 +77,8 @@ async function connectToWhatsApp() {
     } catch (err) {
         log('connect ERROR: ' + (err && err.stack ? err.stack : err));
         setTimeout(connectToWhatsApp, 8000);
+    } finally {
+        connecting = false;
     }
 }
 
@@ -83,10 +94,12 @@ app.get('/', (req, res) => {
 
 app.get('/status', (req, res) => res.json({ connected: isConnected }));
 
-app.get('/debug', (req, res) => {
-    if (req.query.token !== SECRET) return res.status(401).send('nope');
+function debugHandler(token, res) {
+    if (token !== SECRET) return res.status(401).send('nope');
     res.json({ connected: isConnected, hasQr: !!qrCodeData, logs: LOGS });
-});
+}
+app.get('/debug', (req, res) => debugHandler(req.query.token, res));
+app.get('/debug/:token', (req, res) => debugHandler(req.params.token, res));
 
 app.get('/qr', (req, res) => {
     res.send(`
@@ -133,12 +146,8 @@ app.post('/send', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    try { 
-        log('baileys version: ' + require('@whiskeysockets/baileys/package.json').version); 
-    } catch (e) {
-        log('could not read baileys version: ' + e.message);
-    }
-
+    try { log('baileys version: ' + require('@whiskeysockets/baileys/package.json').version); }
+    catch (e) { log('baileys version: unknown'); }
     log('API running on port ' + PORT);
     connectToWhatsApp();
 });
