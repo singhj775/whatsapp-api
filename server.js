@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const qrcode = require('qrcode');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');const fs = require('fs');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('baileys');
 
 const app = express();
 app.use(cors());
@@ -145,7 +145,7 @@ app.post('/send', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    try { log('baileys version: ' + require('@whiskeysockets/baileys/package.json').version); }
+    try { log('baileys version: ' + require('baileys/package.json').version); }
     catch (e) { log('baileys version: unknown'); }
     log('API running on port ' + PORT);
     connectToWhatsApp();
