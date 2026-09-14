@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const qrcode = require('qrcode');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('baileys');
+const fs = require('fs');
 
 const app = express();
 app.use(cors());
@@ -14,9 +14,6 @@ let qrCodeData = null;
 let isConnected = false;
 let connecting = false;
 
-const AUTH_DIR = './auth_info_baileys';
-if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR);
-
 /* ---------- debug log ring ---------- */
 const LOGS = [];
 function log(msg) {
@@ -28,6 +25,47 @@ function log(msg) {
 process.on('unhandledRejection', (e) => log('UNHANDLED REJECTION: ' + (e && e.stack ? e.stack : e)));
 process.on('uncaughtException',  (e) => log('UNCAUGHT EXCEPTION: '  + (e && e.stack ? e.stack : e)));
 
+/* ---------- Baileys loader: survives rename + ESM ---------- */
+let makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers;
+
+async function loadBaileys() {
+    if (makeWASocket) return;
+    let mod = null, err1 = null, err2 = null;
+    try { mod = await import('baileys'); }
+    catch (e) {
+        err1 = e;
+        try { mod = await import('@whiskeysockets/baileys'); }
+        catch (e2) { err2 = e2; }
+    }
+    if (!mod) {
+        log('BAILEYS IMPORT FAILED: ' + (err1 ? err1.message : '') + ' || ' + (err2 ? err2.message : ''));
+        throw (err2 || err1);
+    }
+    const M = (mod && mod.makeWASocket) ? mod : (mod && mod.default ? mod.default : mod);
+    makeWASocket = M.makeWASocket;
+    useMultiFileAuthState = M.useMultiFileAuthState;
+    DisconnectReason = M.DisconnectReason;
+    Browsers = M.Browsers;
+    log('baileys loaded OK');
+}
+
+function baileysVersion() {
+    const candidates = [
+        './node_modules/baileys/package.json',
+        './node_modules/@whiskeysockets/baileys/package.json'
+    ];
+    for (const p of candidates) {
+        try {
+            if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8')).version;
+        } catch (e) {}
+    }
+    return 'unknown';
+}
+
+/* ---------- auth folder ---------- */
+const AUTH_DIR = './auth_info_baileys';
+if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR);
+
 function wipeAuth() {
     try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (e) {}
     try { fs.mkdirSync(AUTH_DIR); } catch (e) {}
@@ -38,6 +76,7 @@ async function connectToWhatsApp() {
     if (connecting || isConnected) return;
     connecting = true;
     try {
+        await loadBaileys();
         log('connectToWhatsApp() start');
         const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
@@ -145,8 +184,7 @@ app.post('/send', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    try { log('baileys version: ' + require('baileys/package.json').version); }
-    catch (e) { log('baileys version: unknown'); }
+    log('baileys version: ' + baileysVersion());
     log('API running on port ' + PORT);
     connectToWhatsApp();
 });
