@@ -44,12 +44,40 @@ async function connectToWhatsApp() {
     sock.ev.on('creds.update', saveCreds);
 }
 
-// Route to get QR Code for initial login
-app.get('/qr', async (req, res) => {
-    if (isConnected) return res.send('<h2>Already Connected!</h2>');
-    if (!qrCodeData) return res.send('Generating QR... Refresh in 5 seconds.');
+// Route to get QR Code for initial login/* Auto-updating QR page */
+app.get('/qr', (req, res) => {
+    res.send(`
+    <html><head><title>WhatsApp QR</title></head>
+    <body style="font-family:Arial;text-align:center;padding:40px;background:#0f172a;color:#e2e8f0">
+      <h2>📱 WhatsApp Login</h2>
+      <div id="box" style="margin-top:20px">Starting WhatsApp engine… (first wake can take ~1 minute)</div>
+      <script>
+        async function poll(){
+          try {
+            const r = await fetch('/qr.png?t=' + Date.now());
+            const j = await r.json();
+            const box = document.getElementById('box');
+            if (j.connected) {
+              box.innerHTML = '<h2 style="color:#22c55e">✅ Connected! You can close this page.</h2>';
+            } else if (j.qr) {
+              box.innerHTML = '<img src="' + j.qr + '" style="width:300px;border-radius:16px;background:#fff;padding:12px" /><p>Scan now with WhatsApp → Linked Devices. Page refreshes itself.</p>';
+            } else {
+              box.innerHTML = 'Starting WhatsApp engine… please wait…';
+            }
+          } catch(e) {}
+        }
+        poll();
+        setInterval(poll, 4000);
+      </script>
+    </body></html>`);
+});
+
+/* QR image endpoint used by the page above */
+app.get('/qr.png', async (req, res) => {
+    if (isConnected) return res.json({ connected: true });
+    if (!qrCodeData) return res.json({ connected: false, qr: null });
     const qrImage = await qrcode.toDataURL(qrCodeData);
-    res.send(`<h2>Scan with WhatsApp</h2><img src="${qrImage}" />`);
+    res.json({ connected: false, qr: qrImage });
 });
 
 // Route to send message (Called by your PHP Dashboard)
