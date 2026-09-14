@@ -134,5 +134,10 @@ app.post('/send', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     log('API running on port ' + PORT);
+    try {
+        fs.rmSync('./auth_info_baileys', { recursive: true, force: true });
+        fs.mkdirSync('./auth_info_baileys');
+        log('startup: auth folder wiped for a clean QR');
+    } catch (e) {}
     connectToWhatsApp();
 });
