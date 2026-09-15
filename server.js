@@ -113,6 +113,23 @@ async function connectToWhatsApp() {
                 log('WhatsApp Connected!');
             }
         });
+            sock.ev.on('messages.update', (updates) => {
+            const MAP = { 3: 'delivered', 4: 'read', 5: 'read', DELIVERY_ACK: 'delivered', READ: 'read', PLAYED: 'read' };
+            const events = [];
+            for (const u of updates || []) {
+                const id = u && u.key && u.key.id;
+                const st = u && u.update && u.update.status;
+                if (!id || st === undefined || st === null) continue;
+                const status = MAP[st] || (typeof st === 'string' ? (MAP[st.toUpperCase()] || null) : null);
+                if (status) events.push({ message_id: id, status });
+            }
+            if (!events.length) return;
+            fetch(RECEIPTS_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: RECEIPTS_TOKEN, events })
+            }).catch(e => log('receipts push failed: ' + e.message));
+        });
 
         sock.ev.on('creds.update', saveCreds);
     } catch (err) {
@@ -177,8 +194,8 @@ app.post('/send', async (req, res) => {
     if (!isConnected || !sock) return res.status(500).json({ error: 'Not connected. Scan QR first.' });
     try {
         const clean = String(to).replace(/[^0-9]/g, '');
-        await sock.sendMessage(clean + '@s.whatsapp.net', { text: message });
-        res.json({ success: true });
+        const sent = await sock.sendMessage(clean + '@s.whatsapp.net', { text: message });
+        res.json({ success: true, message_id: (sent && sent.key && sent.key.id) ? sent.key.id : null });
     } catch (err) {
         log('send ERROR: ' + err.message);
         res.status(500).json({ error: err.message });
