@@ -7,7 +7,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const SECRET = process.env.SECRET || 'MY_SECRET_PASSWORD_123';
+const RECEIPTS_URL   = process.env.RECEIPTS_URL   || 'https://v.srsmartsolutions.in/receipts.php';
+const RECEIPTS_TOKEN = process.env.RECEIPTS_TOKEN || 'SR-RECEIPTS-2026';
 
 let sock = null;
 let qrCodeData = null;
